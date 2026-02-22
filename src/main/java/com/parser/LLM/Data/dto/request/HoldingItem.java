@@ -14,7 +14,9 @@ import java.math.BigDecimal;
  */
 @Data
 @Builder
+// WHY @NoArgsConstructor: Jackson needs this for JSON deserialization.
 @NoArgsConstructor
+// WHY @AllArgsConstructor: Required for @Builder pattern.
 @AllArgsConstructor
 public class HoldingItem {
 

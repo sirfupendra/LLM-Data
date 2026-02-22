@@ -15,7 +15,9 @@ import java.time.LocalDate;
  */
 @Data
 @Builder
+// WHY @NoArgsConstructor: Jackson needs this to deserialize JSON → TransactionItem. Without it: "no Creators, like default constructor".
 @NoArgsConstructor
+// WHY @AllArgsConstructor: Required for @Builder; also useful for: new TransactionItem(date, desc, amount, ...).
 @AllArgsConstructor
 public class TransactionItem {
 

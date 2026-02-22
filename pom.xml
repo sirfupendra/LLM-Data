@@ -55,6 +55,14 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+		<!-- WHY springdoc-openapi-starter-webmvc-ui: Swagger UI for testing endpoints in browser -->
+		<!-- Right choice: springdoc is the standard for Spring Boot 3+ (replaces springfox); auto-generates docs from annotations -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.3.0</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

@@ -15,7 +15,9 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @Builder
+// WHY @NoArgsConstructor: Jackson needs this to create response objects during deserialization (if you ever need to deserialize responses).
 @NoArgsConstructor
+// WHY @AllArgsConstructor: Required for @Builder; also useful for testing: new FinancialConvertResponse(markdown, format, count).
 @AllArgsConstructor
 public class FinancialConvertResponse {
 

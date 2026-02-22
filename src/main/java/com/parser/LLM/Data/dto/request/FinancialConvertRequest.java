@@ -19,7 +19,16 @@ import java.util.List;
  */
 @Data
 @Builder
+// ----- WHY @NoArgsConstructor -----
+// Jackson (JSON deserializer) needs a no-arg constructor to create the object, then it sets fields via setters.
+// Without this, Jackson throws: "Cannot construct instance of FinancialConvertRequest: no Creators, like default constructor, exist".
+// Right choice: required for JSON binding; Lombok generates: public FinancialConvertRequest() { }
 @NoArgsConstructor
+
+// ----- WHY @AllArgsConstructor -----
+// Needed for @Builder to work properly. Builder pattern creates objects via the all-args constructor.
+// Also useful for testing: new FinancialConvertRequest(format, rawContent, transactions, holdings, metadata).
+// Right choice: supports builder pattern and makes testing easier; Lombok generates constructor with all fields.
 @AllArgsConstructor
 public class FinancialConvertRequest {
 
