@@ -54,6 +54,7 @@ public class FinancialToMarkdownService {
             case PORTFOLIO -> buildPortfolioResponse(request.getHoldings());
             case RAW_CSV -> buildRawCsvResponse(request.getRawContent());
             case STATEMENT -> buildStatementResponse(request.getMetadata(), request.getTransactions());
+            case EXCEL -> throw new IllegalArgumentException("EXCEL format is only supported via file upload endpoint (/convert/file), not JSON requests");
         };
     }
 
@@ -116,6 +117,9 @@ public class FinancialToMarkdownService {
                 if (request.getTransactions() == null || request.getTransactions().isEmpty()) {
                     throw new IllegalArgumentException("transactions are required for format STATEMENT");
                 }
+            }
+            case EXCEL -> {
+                throw new IllegalArgumentException("EXCEL format is only supported via file upload endpoint (/convert/file), not JSON requests");
             }
         }
     }
