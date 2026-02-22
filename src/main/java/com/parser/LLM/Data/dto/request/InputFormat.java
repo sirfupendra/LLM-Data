@@ -16,5 +16,8 @@ public enum InputFormat {
     RAW_CSV,
 
     /** Statement with metadata + transactions (e.g. full bank statement). */
-    STATEMENT
+    STATEMENT,
+
+    /** Excel workbook (.xlsx, .xls). */
+    EXCEL
 }

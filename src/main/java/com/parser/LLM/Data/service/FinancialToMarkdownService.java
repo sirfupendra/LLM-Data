@@ -2,9 +2,14 @@ package com.parser.LLM.Data.service;
 
 import com.parser.LLM.Data.dto.request.*;
 import com.parser.LLM.Data.dto.response.FinancialConvertResponse;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -75,10 +80,8 @@ public class FinancialToMarkdownService {
         return switch (detectedFormat) {
             case RAW_CSV -> parseCsvFile(file);
             case STATEMENT -> parsePdfFile(file);
+            case EXCEL -> parseExcelFile(file);
             default -> {
-                // WHY throw exception for unsupported:
-                // Fail fast - don't return empty/invalid data. Client gets clear error.
-                // Right choice: Explicit error better than silent failure.
                 throw new IllegalArgumentException("Unsupported file format: " + contentType);
             }
         };
@@ -285,12 +288,13 @@ public class FinancialToMarkdownService {
             String lower = fileName.toLowerCase();
             if (lower.endsWith(".pdf")) return InputFormat.STATEMENT;
             if (lower.endsWith(".csv")) return InputFormat.RAW_CSV;
-            if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) return InputFormat.RAW_CSV;
+            if (lower.endsWith(".xlsx") || lower.endsWith(".xls")) return InputFormat.EXCEL;
         }
 
         if (contentType != null) {
             if (contentType.contains("pdf")) return InputFormat.STATEMENT;
-            if (contentType.contains("csv") || contentType.contains("excel")) return InputFormat.RAW_CSV;
+            if (contentType.contains("csv")) return InputFormat.RAW_CSV;
+            if (contentType.contains("spreadsheet") || contentType.contains("excel")) return InputFormat.EXCEL;
         }
 
         // WHY default to RAW_CSV:
@@ -300,25 +304,133 @@ public class FinancialToMarkdownService {
     }
 
     /**
-     * WHY placeholder for PDF parsing:
-     * - PDF parsing requires library (Apache PDFBox, iText, etc.) - not added yet.
-     * - Right choice: Stub now, add real parsing later when library is added.
+     * PDF parsing using Apache PDFBox: load document, strip text, format as markdown.
+     * PDFBox extracts text in reading order; we preserve paragraphs and line breaks for LLM readability.
      */
     private FinancialConvertResponse parsePdfFile(MultipartFile file) {
-        // TODO: Add PDF parsing library (Apache PDFBox) and extract text/tables from PDF
-        String stubMarkdown = String.format(
-                "# PDF File (parsing not implemented yet)\n\n" +
-                "- **Filename:** %s\n" +
-                "- **Size:** %d bytes\n\n" +
-                "*Add PDF parsing logic using Apache PDFBox or similar library*",
-                file.getOriginalFilename(), file.getSize()
-        );
+        try (InputStream is = file.getInputStream();
+             PDDocument document = Loader.loadPDF(is.readAllBytes())) {
 
-        return FinancialConvertResponse.builder()
-                .markdown(stubMarkdown)
-                .format("STATEMENT")
-                .itemCount(0)
-                .build();
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            String rawText = stripper.getText(document);
+
+            if (rawText == null || rawText.isBlank()) {
+                return FinancialConvertResponse.builder()
+                        .markdown("# PDF: No extractable text\n\n*Document may be scanned/image-based. OCR not implemented.*")
+                        .format("STATEMENT")
+                        .itemCount(0)
+                        .build();
+            }
+
+            StringBuilder md = new StringBuilder();
+            md.append("# Financial document (PDF)\n\n");
+            md.append("- **Filename:** ").append(file.getOriginalFilename()).append("\n");
+            md.append("- **Pages:** ").append(document.getNumberOfPages()).append("\n\n");
+            md.append("## Content\n\n");
+
+            String normalized = rawText.replace("\r\n", "\n").replace("\r", "\n").strip();
+            String[] paragraphs = normalized.split("\\n\\s*\\n");
+            for (String para : paragraphs) {
+                String line = para.replace("\n", " ").trim();
+                if (!line.isEmpty()) {
+                    md.append(line).append("\n\n");
+                }
+            }
+
+            return FinancialConvertResponse.builder()
+                    .markdown(md.toString())
+                    .format("STATEMENT")
+                    .itemCount(paragraphs.length)
+                    .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse PDF: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Excel parsing using Apache POI: read all sheets, each sheet as a markdown table.
+     * Handles .xlsx (XSSF) and .xls (HSSF) via WorkbookFactory.
+     */
+    private FinancialConvertResponse parseExcelFile(MultipartFile file) {
+        try (InputStream is = file.getInputStream();
+             Workbook workbook = WorkbookFactory.create(is)) {
+
+            StringBuilder md = new StringBuilder();
+            md.append("# Financial data (Excel)\n\n");
+            md.append("- **Filename:** ").append(file.getOriginalFilename()).append("\n");
+            md.append("- **Sheets:** ").append(workbook.getNumberOfSheets()).append("\n\n");
+
+            int totalRows = 0;
+            for (int s = 0; s < workbook.getNumberOfSheets(); s++) {
+                Sheet sheet = workbook.getSheetAt(s);
+                String sheetName = sheet.getSheetName();
+                md.append("## Sheet: ").append(escapePipe(sheetName)).append("\n\n");
+
+                int maxCols = 0;
+                for (Row row : sheet) {
+                    if (row.getLastCellNum() > maxCols) {
+                        maxCols = (int) row.getLastCellNum();
+                    }
+                }
+                if (maxCols <= 0) {
+                    md.append("*Empty sheet*\n\n");
+                    continue;
+                }
+
+                int rowIndex = 0;
+                for (Row row : sheet) {
+                    md.append("| ");
+                    for (int c = 0; c < maxCols; c++) {
+                        Cell cell = row.getCell(c);
+                        String value = getCellValueAsString(cell);
+                        md.append(escapePipe(value)).append(" | ");
+                    }
+                    md.append("\n");
+                    if (rowIndex == 0) {
+                        md.append("|").append("---|".repeat(maxCols)).append("\n");
+                    }
+                    totalRows++;
+                    rowIndex++;
+                }
+                md.append("\n");
+            }
+
+            return FinancialConvertResponse.builder()
+                    .markdown(md.toString())
+                    .format("EXCEL")
+                    .itemCount(totalRows)
+                    .build();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse Excel: " + e.getMessage(), e);
+        }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return "";
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue();
+            case NUMERIC -> {
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    try {
+                        yield cell.getLocalDateTimeCellValue().toString();
+                    } catch (Exception e) {
+                        yield String.valueOf(cell.getNumericCellValue());
+                    }
+                }
+                yield BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+            }
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            case FORMULA -> {
+                try {
+                    yield BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+                } catch (Exception e) {
+                    yield cell.getCellFormula();
+                }
+            }
+            case BLANK, ERROR -> "";
+            default -> cell.toString();
+        };
     }
 
     /**
