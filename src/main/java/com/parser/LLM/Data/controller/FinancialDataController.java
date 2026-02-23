@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1/financial")
 @Tag(name = "Financial Data", description = "Convert financial data (transactions, portfolio, CSV, PDFs) to LLM-friendly markdown")
 @RequiredArgsConstructor
+@Slf4j
 public class FinancialDataController {
 
     private final FinancialToMarkdownService financialToMarkdownService;
@@ -40,42 +42,20 @@ public class FinancialDataController {
             produces = MediaType.APPLICATION_JSON_VALUE
     )
     public ResponseEntity<FinancialConvertResponse> convertToMarkdown(
-            @Valid @RequestBody FinancialConvertRequest request
+            @Valid @RequestBody FinancialConvertRequest financialConvertRequest
     ) {
-        FinancialConvertResponse response = financialToMarkdownService.convert(request);
-        return ResponseEntity.ok(response);
-    }
-
-    @Operation(
-            summary = "Upload and convert financial file to markdown",
-            description = "Accepts PDF, CSV, Excel files and converts to LLM-friendly markdown. Supports: PDF statements, CSV exports, Excel files."
-    )
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Successfully converted file to markdown",
-                    content = @Content(schema = @Schema(implementation = FinancialConvertResponse.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid file or unsupported format"),
-            @ApiResponse(responseCode = "500", description = "Internal server error")
-    })
-    @PostMapping(
-            value = "/convert/file",
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<FinancialConvertResponse> convertFileToMarkdown(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "format", required = false) String formatHint
-    ) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body(
-                    FinancialConvertResponse.builder()
-                            .markdown("# Error: File is empty")
-                            .format("ERROR")
-                            .itemCount(0)
-                            .build()
-            );
+        if(financialConvertRequest.getJsonArray()!=null && financialConvertRequest.getJsonArray().size()>0){
+            log.info(String.valueOf(financialConvertRequest.getJsonArray().size()));
         }
 
-        FinancialConvertResponse response = financialToMarkdownService.convertFile(file, formatHint);
+        FinancialConvertResponse response=null;
+        if(financialConvertRequest.getJsonArray()!=null && financialConvertRequest.getJsonArray().size()>0){
+            response = financialToMarkdownService.convertJsonArrayDataInMarkDown(financialConvertRequest);
+        }else{
+            response= financialToMarkdownService.convertJsonDataInMarkDown(financialConvertRequest);
+        }
+
         return ResponseEntity.ok(response);
     }
+
 }

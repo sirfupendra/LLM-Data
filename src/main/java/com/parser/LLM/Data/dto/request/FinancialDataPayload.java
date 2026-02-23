@@ -22,7 +22,7 @@ import java.util.List;
  * - Jackson reads the "format" from parent and deserializes "data" into the right type.
  */
 @Data
-@NoArgsConstructor
+
 @AllArgsConstructor
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "format", visible = true)
 @JsonSubTypes({

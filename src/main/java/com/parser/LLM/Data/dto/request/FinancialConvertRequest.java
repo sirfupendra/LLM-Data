@@ -1,6 +1,9 @@
 package com.parser.LLM.Data.dto.request;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.parser.LLM.Data.utility.Annotations.ValidFinancialRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,19 +16,9 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ValidFinancialRequest
 public class FinancialConvertRequest {
+    private JsonNode jsonInput;
 
-    @NotNull(message = "Input format is required")
-    private InputFormat format;
-
-    private String rawContent;
-
-    @Valid
-    private List<TransactionItem> transactions;
-
-    @Valid
-    private List<HoldingItem> holdings;
-
-    @Valid
-    private StatementMetadata metadata;
+    private List<JsonNode> jsonArray;
 }

@@ -5,13 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class FinancialConvertResponse {
-
-    private String markdown;
-    private String format;
-    private Integer itemCount;
+    Map<String , Object> parsedData=new HashMap<>();
 }
